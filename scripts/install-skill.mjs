@@ -101,8 +101,17 @@ export function uninstallSkill({ scope = 'global', dir = null } = {}) {
   return { dest, changed: true };
 }
 
-// run directly: node scripts/install-skill.mjs [flags]
-if (import.meta.url === `file://${process.argv[1]}` || process.argv[1] === fileURLToPath(import.meta.url)) {
+// Run directly: node scripts/install-skill.mjs [flags]
+// Compare resolved paths rather than string-matching a file:// URL. The naive
+// form breaks on Windows drive letters, and under bun or a pnpm .bin shim
+// argv[1] is not always spelled the way import.meta.url is.
+const runDirectly = (() => {
+  try {
+    return !!process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
+  } catch { return false; }
+})();
+
+if (runDirectly) {
   const a = process.argv.slice(2);
   const flag = (n) => a.includes(`--${n}`);
   const val = (n) => { const i = a.indexOf(`--${n}`); return i > -1 ? a[i + 1] : null; };

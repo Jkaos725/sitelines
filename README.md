@@ -8,7 +8,7 @@ Zero dependencies · no build step · Node 18+ · MIT
 
 </div>
 
-![The sitelines viewer showing a 20-page site laid out by click depth, with dead links in red](docs/map.jpg)
+![The sitelines viewer showing a 20-page site laid out by click depth, with dead links in red](https://raw.githubusercontent.com/Jkaos725/sitelines/main/docs/map.jpg)
 
 sitelines reads your source, finds every page and every link, button, redirect, and form that moves between
 them, then serves a map in your browser. Each card is a real page with a live preview. Each wire is a real
@@ -63,10 +63,21 @@ Three ways in, depending on what you want.
 Everything above. The scanner, the server, and the map.
 
 ```bash
-npx sitelines open                     # no install
-npm install -g sitelines               # or keep it around
-pnpm add -g sitelines
+npx sitelines open          # npm
+pnpm dlx sitelines open     # pnpm
+bunx sitelines open         # bun
 ```
+
+Or keep it around:
+
+```bash
+npm  install -g sitelines
+pnpm add -g sitelines
+bun  add -g sitelines
+```
+
+**Every `npx` in this README works the same as `pnpm dlx` and `bunx`.** sitelines has no dependencies and
+no build step, so there is nothing for a package manager to disagree about. It runs on Node 18+ and on Bun.
 
 Or from source, with nothing to build:
 
@@ -188,7 +199,7 @@ reachable, and sitelines will not call it an orphan just because the footer is h
 
 ### Every page is live, at any width
 
-![The inspector panel open on a docs page, showing a live desktop preview and all eight of its exits with file and line numbers](docs/inspector.jpg)
+![The inspector panel open on a docs page, showing a live desktop preview and all eight of its exits with file and line numbers](https://raw.githubusercontent.com/Jkaos725/sitelines/main/docs/inspector.jpg)
 
 Click a card to open it: a real preview at mobile, tablet, or desktop width, every exit with its editable
 label and destination, every entrance, and a notes field. Previews come straight off disk, so you do not
@@ -199,7 +210,7 @@ Hover any dot or wire for the control's real text, both routes, how it navigates
 
 ### Changes queue instead of landing
 
-![The queued changes drawer listing five pending edits, with the map already previewing them](docs/changes.jpg)
+![The queued changes drawer listing five pending edits, with the map already previewing them](https://raw.githubusercontent.com/Jkaos725/sitelines/main/docs/changes.jpg)
 
 | Do this | Get this |
 | --- | --- |
@@ -214,7 +225,7 @@ dashed card. The queue lives in `.sitelines/edits.json` and is the only thing si
 
 ### Both themes, because it sits next to your editor
 
-![The same map in dark mode](docs/dark.jpg)
+![The same map in dark mode](https://raw.githubusercontent.com/Jkaos725/sitelines/main/docs/dark.jpg)
 
 Follows `prefers-color-scheme` and remembers a manual override. Every text color clears WCAG AA in both.
 
