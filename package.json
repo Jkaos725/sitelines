@@ -1,11 +1,20 @@
 {
-  "name": "routemap",
+  "name": "sitelines",
   "version": "1.0.0",
   "description": "Map, audit, and edit a website's navigation. Scans every page and every link between them, serves an interactive map with live page previews, flags dead links and orphans, and queues your edits for an agent to implement.",
   "type": "module",
   "license": "MIT",
+  "author": "Jkaos725",
+  "homepage": "https://github.com/Jkaos725/sitelines#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jkaos725/sitelines.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Jkaos725/sitelines/issues"
+  },
   "bin": {
-    "routemap": "bin/routemap.mjs"
+    "sitelines": "bin/sitelines.mjs"
   },
   "engines": {
     "node": ">=18"
@@ -15,6 +24,8 @@
     "scripts",
     "viewer",
     "skill",
+    "examples",
+    "docs",
     "DESIGN.md",
     "README.md",
     "LICENSE"
@@ -22,7 +33,8 @@
   "scripts": {
     "scan": "node scripts/scan.mjs",
     "serve": "node scripts/serve.mjs",
-    "start": "node bin/routemap.mjs open",
+    "start": "node bin/sitelines.mjs open",
+    "demo": "node bin/sitelines.mjs demo",
     "skill:install": "node scripts/install-skill.mjs"
   },
   "keywords": [

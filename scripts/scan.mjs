@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// routemap scanner — builds .routemap/flow.json (pages, navigation links, issues)
-// Usage: node scan.mjs [--root public] [--out .routemap] [--base http://localhost:8788]
+// sitelines scanner - builds .sitelines/flow.json (pages, navigation links, issues)
+// Usage: node scan.mjs [--root public] [--out .sitelines] [--base http://localhost:8788]
 import fs from 'node:fs';
 import path from 'node:path';
 
 const SKIP_DIRS = new Set([
-  'node_modules', '.git', '.routemap', 'dist', 'build', 'out', 'coverage', 'vendor',
+  'node_modules', '.git', '.sitelines', 'dist', 'build', 'out', 'coverage', 'vendor',
   '.next', '.nuxt', '.output', '.svelte-kit', '.astro', '.cache', '.turbo', '.parcel-cache',
   '.vercel', '.netlify', '.wrangler', 'target', 'tmp',
 ]);
@@ -14,7 +14,7 @@ const ROOT_CANDIDATES = ['public', 'site', 'www', 'static', 'src/pages', 'src/ro
 const args = parseArgs(process.argv.slice(2));
 const cwd = process.cwd();
 const root = path.resolve(cwd, args.root || detectRoot(cwd));
-const outDir = path.resolve(cwd, args.out || '.routemap');
+const outDir = path.resolve(cwd, args.out || '.sitelines');
 const flowPath = path.join(outDir, 'flow.json');
 const base = args.base || '';
 let ROUTES = null;
@@ -96,6 +96,7 @@ function main() {
 
   const nodes = [...pages, ...extra.values()];
   dedupeEdges(edges);
+  markRepeated(edges);
   const flow = {
     version: 1,
     generatedAt: new Date().toISOString(),
@@ -111,7 +112,7 @@ function main() {
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(flowPath, JSON.stringify(flow, null, 2));
   const issues = flow.issues;
-  console.log(`routemap: ${flow.nodes.length} nodes, ${flow.edges.length} links -> ${posix(path.relative(cwd, flowPath))}`);
+  console.log(`sitelines: ${flow.nodes.length} nodes, ${flow.edges.length} links -> ${posix(path.relative(cwd, flowPath))}`);
   console.log(`issues: ${issues.deadLinks.length} dead links, ${issues.orphans.length} orphans, ${issues.deadEnds.length} dead ends, ${issues.deep.length} deep (>3), ${issues.hubs.length} hubs`);
 }
 
@@ -293,6 +294,23 @@ function dedupeEdges(edges) {
   }
 }
 
+// A header or footer repeated on every page emits one link per page, and those
+// hundreds of identical wires bury the handful of links that are specific to a
+// page. Tag anything that appears from more than REPEAT_MIN pages so the viewer
+// can fold it away, the same way it already folds links wired by shared scripts.
+const REPEAT_MIN = 4;
+function markRepeated(edges) {
+  const sources = new Map();   // "label\0target" -> Set(page it appears on)
+  for (const e of edges) {
+    const k = `${e.label} ${e.to}`;
+    if (!sources.has(k)) sources.set(k, new Set());
+    sources.get(k).add(e.from);
+  }
+  for (const e of edges) {
+    if (sources.get(`${e.label} ${e.to}`).size > REPEAT_MIN) e.repeated = true;
+  }
+}
+
 function analyze(flow) {
   const byId = new Map(flow.nodes.map((n) => [n.id, n]));
   const out = new Map(), inn = new Map();
@@ -376,6 +394,6 @@ function parseArgs(a) {
   }
   return o;
 }
-function die(m) { console.error('routemap: ' + m); process.exit(1); }
+function die(m) { console.error('sitelines: ' + m); process.exit(1); }
 
 main();

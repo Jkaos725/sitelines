@@ -1,5 +1,8 @@
-# routemap state, written next to wherever you run the tool
-.routemap/
+# sitelines state, written next to wherever you run the tool
+.sitelines/
+
+# the demo copy that `sitelines demo` drops in your cwd
+sitelines-demo/
 
 node_modules/
 npm-debug.log*

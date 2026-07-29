@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// routemap server — serves the viewer, the site (for live previews), and the change queue.
-// Usage: node serve.mjs [--root public] [--out .routemap] [--port 4370]
+// sitelines server - serves the viewer, the site (for live previews), and the change queue.
+// Usage: node serve.mjs [--root public] [--out .sitelines] [--port 4370]
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
@@ -10,15 +10,15 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const viewerDir = path.join(here, '..', 'viewer');
 const args = parseArgs(process.argv.slice(2));
 const cwd = process.cwd();
-const outDir = path.resolve(cwd, args.out || '.routemap');
+const outDir = path.resolve(cwd, args.out || '.sitelines');
 const flowPath = path.join(outDir, 'flow.json');
 const editsPath = path.join(outDir, 'edits.json');
 const viewsPath = path.join(outDir, 'views.json');
 const port = Number(args.port || 4370);
 
 if (!fs.existsSync(flowPath)) {
-  console.error(`routemap: no scan at ${flowPath}`);
-  console.error('routemap: run `routemap scan` first (or `node scripts/scan.mjs`)');
+  console.error(`sitelines: no scan at ${flowPath}`);
+  console.error('sitelines: run `sitelines scan` first (or `node scripts/scan.mjs`)');
   process.exit(1);
 }
 const flow0 = JSON.parse(fs.readFileSync(flowPath, 'utf8'));
@@ -42,8 +42,9 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/views' && req.method === 'GET') return json(res, readViews());
     if (p === '/api/views' && req.method === 'POST') {
       const body = await readBody(req);
-      write(viewsPath, body);
-      return json(res, { ok: true });
+      const next = withBase(body);
+      write(viewsPath, next);
+      return json(res, next);
     }
     if (p === '/api/edits' && req.method === 'POST') {
       const body = await readBody(req);
@@ -92,15 +93,21 @@ const server = http.createServer(async (req, res) => {
 
 server.on('error', (e) => {
   if (e.code === 'EADDRINUSE') {
-    console.error(`routemap: port ${port} is already in use — try \`routemap serve --port ${port + 1}\``);
+    console.error(`sitelines: port ${port} is already in use - try \`sitelines serve --port ${port + 1}\``);
     process.exit(1);
   }
   throw e;
 });
 
-server.listen(port, () => {
-  console.log(`routemap  http://localhost:${port}`);
+// Loopback only. This server hands out every file under the scan root and has
+// endpoints that write to disk and spawn a rescan, so it must not be reachable
+// from the network just because you are on shared wifi. --host is opt-in.
+const host = args.host === true ? '0.0.0.0' : (args.host || '127.0.0.1');
+
+server.listen(port, host, () => {
+  console.log(`sitelines  http://localhost:${port}`);
   console.log(`  previews from ${posix(path.relative(cwd, siteRoot)) || '.'}  |  changes -> ${posix(path.relative(cwd, editsPath))}`);
+  if (host !== '127.0.0.1') console.log(`  WARNING: listening on ${host}, so anyone on this network can read your source`);
 });
 
 const SW_GUARD = `<script>(function(){try{var n=navigator;if(!n.serviceWorker)return;
@@ -123,9 +130,17 @@ const MISSING_PAGE = `<!doctype html><meta charset="utf-8"><title>Not on disk</t
 <b>No file on disk</b>
 <span>This route is a dynamic route or a dead link.</span>`;
 
+// `resolved.startsWith(base)` is not a containment check: with base /srv/public a
+// request resolving to /srv/public-private/secret passes it. Compare the relative
+// path instead, which is empty or a plain descendant only when truly inside.
+function inside(base, file) {
+  const rel = path.relative(path.resolve(base), path.resolve(file));
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+}
+
 function serveStatic(res, base, p, isSite, req) {
   let file = path.join(base, p);
-  if (!path.resolve(file).startsWith(path.resolve(base))) { res.writeHead(403); return res.end('forbidden'); }
+  if (!inside(base, file)) { res.writeHead(403); return res.end('forbidden'); }
   if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, 'index.html');
   if (!fs.existsSync(file)) {
     const alt = file.replace(/\/$/, '') + '.html';
@@ -152,23 +167,25 @@ function serveStatic(res, base, p, isSite, req) {
 
 function readEdits() { return fs.existsSync(editsPath) ? JSON.parse(fs.readFileSync(editsPath, 'utf8')) : []; }
 
-// Views are user-editable include/exclude sets. Defaults are seeded from the
-// sandbox-looking top-level directories found by the scan (design-lab, demos…).
-const LAB_RE = /^(design[-_]?lab|sandbox|labs?|demos?|playground|kitchen[-_]?sink|examples?|proto(types?)?|styleguide|storybook|fixtures?)$/i;
+// Views are user-editable include/exclude sets. Exactly one is seeded: the base
+// view, which always shows every page and never carries rules. Users add their
+// own from the viewer, and agents add them by appending to this file.
 function readViews() {
-  if (fs.existsSync(viewsPath)) return read(viewsPath);
-  const groups = [...new Set(read(flowPath).nodes.filter((n) => n.type === 'page').map((n) => n.group))];
-  const lab = groups.filter((g) => LAB_RE.test(g || '')).map((g) => `/${g}/**`);
-  const v = {
-    active: 'site',
-    views: [
-      { id: 'site', label: 'site', include: [], exclude: lab },
-      { id: 'lab', label: lab.length ? lab[0].replace(/^\/|\/\*\*$/g, '').replace(/[-_]/g, ' ') : 'sandbox', include: lab, exclude: [] },
-      { id: 'all', label: 'everything', include: [], exclude: [] },
-    ],
-  };
+  if (fs.existsSync(viewsPath)) return withBase(read(viewsPath));
+  const v = withBase({ active: 'all', views: [] });
   write(viewsPath, v);
   return v;
+}
+
+// the base view is a guarantee, not a default: restore it if a hand-edit drops it
+function withBase(cfg) {
+  const views = Array.isArray(cfg.views) ? cfg.views.filter((v) => v && v.id) : [];
+  const i = views.findIndex((v) => v.base || v.id === 'all');
+  const base = { ...(i > -1 ? views[i] : {}), id: 'all', label: 'everything', base: true, include: [], exclude: [] };
+  if (i > -1) views.splice(i, 1);
+  const out = { active: cfg.active || 'all', views: [base, ...views] };
+  if (!out.views.some((v) => v.id === out.active)) out.active = 'all';
+  return out;
 }
 function read(f) { return JSON.parse(fs.readFileSync(f, 'utf8')); }
 function write(f, v) { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify(v, null, 2)); }
@@ -181,7 +198,7 @@ function readBody(req) {
     req.on('error', reject);
   });
 }
-function log(m) { console.log(`routemap: ${m}`); }
+function log(m) { console.log(`sitelines: ${m}`); }
 function posix(p) { return p.split(path.sep).join('/'); }
 function parseArgs(a) {
   const o = {};

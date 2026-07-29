@@ -1,9 +1,9 @@
 ---
-name: routemap
-description: Map, audit, and edit a website's navigation. Scans the repo for pages and every link, button, redirect, and form that moves between them, then serves an interactive map where each card is a page with a live preview and each wire is a navigation. Flags dead links, orphans, dead ends, and pages buried too deep. Changes made in the browser are queued and implemented in the code by the agent. Use when the user says "show the site flow", "map the app", "user flow", "site map", "where does this button go", "add a page to the flow", "find dead links", "optimize navigation", or invokes /routemap.
+name: sitelines
+description: Map, audit, and edit a website's navigation. Scans the repo for pages and every link, button, redirect, and form that moves between them, then serves an interactive map where each card is a page with a live preview and each wire is a navigation. Flags dead links, orphans, dead ends, and pages buried too deep. Changes made in the browser are queued and implemented in the code by the agent. Use when the user says "show the site flow", "map the app", "user flow", "site map", "where does this button go", "add a page to the flow", "find dead links", "optimize navigation", or invokes /sitelines.
 ---
 
-# routemap — a site's navigation as a map you can edit
+# sitelines - a site's navigation as a map you can edit
 
 Three verbs: **show** (scan and serve the map), **change** (queue navigation edits in the browser),
 **improve** (act on the flagged issues). The map is the source of truth for what the code does; the change
@@ -12,7 +12,7 @@ queue is the source of truth for what the user wants different.
 ## Show the map
 
 ```bash
-node <skill-dir>/scripts/scan.mjs --root public      # -> .routemap/flow.json
+node <skill-dir>/scripts/scan.mjs --root public      # -> .sitelines/flow.json
 node <skill-dir>/scripts/serve.mjs --root public     # -> http://localhost:4370
 ```
 
@@ -20,12 +20,16 @@ Run `serve.mjs` with `run_in_background: true`, then give the user the URL. Neve
 
 - `--root` = the directory holding the site's pages. Auto-detected if omitted (`public`, `site`, `www`,
   `static`, `src/pages`, `src/routes`, `src/app`, `app/pages`, `pages`, `app`, `docs`).
-- `--out` = state directory, default `.routemap/` in the repo. Suggest adding it to `.gitignore` unless
+- `--out` = state directory, default `.sitelines/` in the repo. Suggest adding it to `.gitignore` unless
   the user wants to share the map's layout and notes with their team.
 - `--port` = default 4370.
 - Node 18+, zero dependencies, no build step.
 
-If the user installed the npm package instead, `routemap scan` and `routemap serve` do the same thing.
+If the user installed the npm package instead, `sitelines scan` and `sitelines serve` do the same thing.
+
+If they only want to see what the tool does, `sitelines demo` copies the bundled 20-page example site into
+`./sitelines-demo` and maps that. The example carries deliberate faults (two dead links, three orphans, a
+dead end, a page four clicks deep), so every part of the map has something to show.
 
 Previews are served from disk by `serve.mjs` at `/site<route>`, so no dev server is needed. Two deliberate
 defaults:
@@ -53,8 +57,14 @@ carrying the **trigger text** (the actual button or link label), the file, and t
 | JS: `location.href/assign/replace`, `window.open`, `router.push/replace`, `navigate(…)`, `href="…"` in templates | trigger inferred from the nearest `getElementById`/`querySelector` above the call |
 
 Targets that resolve to no file become **dead-link** cards. `/api/*` and `http(s)://` become side cards,
-hidden by default behind the API and external toggles. JavaScript included by more than 4 pages is tagged
-`js-shared` and hidden by default; turn it on to see global nav wiring.
+hidden by default behind the API and external toggles.
+
+**Site-wide links fold away by default.** A link appearing from more than 4 pages is tagged `repeated` by
+the scanner (a header, a footer, a nav partial), as is any link wired by a script more than 4 pages include
+(`js-shared`). Both hide behind **Layers → Site-wide nav and footer links**, and the sidebar reports the
+count it folded, for example `Links drawn 27 of 174`. This is a drawing decision only: depth, orphans,
+dead ends, and every other judgement are computed from the complete link set, so a page reachable only
+through the footer is never reported as an orphan.
 
 Re-running the scan preserves card positions and notes.
 
@@ -62,22 +72,22 @@ Re-running the scan preserves card positions and notes.
 
 `flow.json.issues` and the **Issues** list carry, in priority order:
 
-1. **Dead links** — a control goes nowhere. Always a real bug: fix the href or create the page.
-2. **Orphan / unreachable** — no inbound link, or not reachable from the entry by clicking. Link it or delete it.
-3. **Deep** — more than 3 clicks from the entry. Propose a shortcut from a hub.
-4. **Dead ends** — no exits. Add a next step or a way back.
-5. **Hubs** — more than 12 exits on one page. Propose grouping.
+1. **Dead links** - a control goes nowhere. Always a real bug: fix the href or create the page.
+2. **Orphan / unreachable** - no inbound link, or not reachable from the entry by clicking. Link it or delete it.
+3. **Deep** - more than 3 clicks from the entry. Propose a shortcut from a hub.
+4. **Dead ends** - no exits. Add a next step or a way back.
+5. **Hubs** - more than 12 exits on one page. Propose grouping.
 
 Report these as findings with `file:line`, and only change code once the user picks.
 
 ## Apply the user's changes
 
-The browser queues changes to `.routemap/edits.json`; the viewer never writes to the site. When the user
-says "apply my routemap changes" (or similar), read that file and implement each `pending` entry in the
+The browser queues changes to `.sitelines/edits.json`; the viewer never writes to the site. When the user
+says "apply my sitelines changes" (or similar), read that file and implement each `pending` entry in the
 real code:
 
 ```bash
-cat .routemap/edits.json
+cat .sitelines/edits.json
 ```
 
 | op | what to do in code |
@@ -92,7 +102,7 @@ cat .routemap/edits.json
 `references/edit-protocol.md` has the exact JSON shape of every op.
 
 After applying: re-run `scan.mjs`, confirm the intended links now exist and no new dead links appeared, then
-mark each applied entry by setting `"status": "applied"` in `.routemap/edits.json`. Keep them as history;
+mark each applied entry by setting `"status": "applied"` in `.sitelines/edits.json`. Keep them as history;
 do not silently drop them. Report what changed as `file:line`.
 
 Obey the repo's own conventions when writing. Read `CLAUDE.md`, `AGENTS.md`, or any project skill for
@@ -100,22 +110,27 @@ cache-busting query strings, nav partials, route registration, or tests that mus
 
 ## Views, sections, and state
 
-**Three view tabs**, seeded on first run into `.routemap/views.json` and owned by the user after that:
+**One view is seeded**: `everything`, the base view. It always shows every page and never carries a rule.
+Filtering while it is active creates a new view instead of narrowing the one complete picture of the site.
 
-| tab | rule |
-| --- | --- |
-| **site** | everything except sandbox-looking directories |
-| **sandbox** | only those directories |
-| **everything** | no rules |
+To add a view, append to `.sitelines/views.json` and its tab appears. Do this rather than touching the
+viewer code when the user asks for a different split:
 
-The seed detects directories named like `design-lab`, `sandbox`, `demos`, `playground`, `examples`,
-`prototypes`, `styleguide`, `storybook`, or `fixtures`. If none exist, the second tab is empty and harmless.
+```json
+{
+  "active": "all",
+  "views": [
+    { "id": "all",  "label": "everything", "base": true, "include": [], "exclude": [] },
+    { "id": "docs", "label": "docs only",  "include": ["/docs/**"], "exclude": [] }
+  ]
+}
+```
 
 Each view is `{id, label, include[], exclude[], collapsed[], entry?}`. Patterns: `/admin/**` (subtree),
 `/admin/` (exact), `/admin/*` (one level), `*report*` (substring). A non-empty `include` means *only* those.
-Users edit them three ways: the rule box in the sidebar, **Hide from this view** / **Hide its whole
-section** in the inspector, and the **+** on a hidden page. So when the user asks for a different split,
-edit `.routemap/views.json` (add a view object and its tab appears) rather than touching the viewer code.
+The base view is a guarantee: the server restores it if a hand-edit drops it, and strips any rule added to
+it. Users also add views from the **+** on the tab bar, the rule box in the sidebar, and **Hide from this
+view** in the inspector.
 
 - Hiding a page removes it **and every wire touching it** from that view; the sidebar lists what is hidden.
 - **Sections**: pages sharing a top-level directory get a labelled backdrop. Click the backdrop label (or
@@ -132,8 +147,8 @@ edit `.routemap/views.json` (add a view object and its tab appears) rather than 
 
 - Drag the background to pan, wheel to zoom, `f` to fit, `/` to search, `Escape` to cancel, drag a card to
   move it (the position is saved).
-- **Layers**: shared-script links, API endpoints, external links, live previews, run page JavaScript.
-- Keys `1` `2` `3` switch view tabs.
+- **Layers**: site-wide nav and footer links, API endpoints, external links, live previews, run page JavaScript.
+- Keys `1` `2` `3` switch view tabs; **+** on the tab bar makes a new view.
 - Click a card to inspect it: full-size live preview at mobile, tablet, or desktop width, its exits, its
   entrances, and notes.
 - **+ Link** (or `e`), then click a destination, proposes a new control.
@@ -146,8 +161,8 @@ edit `.routemap/views.json` (add a view object and its tab appears) rather than 
 ## Files
 
 ```
-DESIGN.md                     the viewer's visual system — read before touching viewer/style.css
-scripts/scan.mjs              static analysis -> .routemap/flow.json
+DESIGN.md                     the viewer's visual system - read before touching viewer/style.css
+scripts/scan.mjs              static analysis -> .sitelines/flow.json
 scripts/serve.mjs             viewer + site preview server + change queue API (node:http, no deps)
 scripts/install-skill.mjs     copies this skill into a Claude Code skills directory
 viewer/                       the map UI (index.html, app.js, style.css)

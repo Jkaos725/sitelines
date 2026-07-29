@@ -1,6 +1,6 @@
-# routemap change protocol
+# sitelines change protocol
 
-`.routemap/edits.json` is a JSON array, append-only from the viewer. Every entry:
+`.sitelines/edits.json` is a JSON array, append-only from the viewer. Every entry:
 
 ```json
 { "id": "e1m2k3", "at": "2026-07-28T18:03:11.000Z", "status": "pending", "op": "...", "summary": "human sentence" }

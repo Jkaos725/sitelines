@@ -1,4 +1,4 @@
-# routemap viewer — design
+# sitelines viewer - design
 
 The authority for `viewer/style.css`. Read this before changing anything visual.
 
@@ -69,9 +69,9 @@ navigation mechanisms stay distinguishable without spending four more hues:
 
 One radius system, no exceptions:
 
-- `--r-1` **6px** — every interactive control: buttons, tabs, inputs, chips, badges, list rows.
-- `--r-2` **10px** — every surface: page cards, panels, popovers, the modal, the preview frame.
-- `--r-3` **14px** — containers that hold surfaces: the section backdrop.
+- `--r-1` **6px** - every interactive control: buttons, tabs, inputs, chips, badges, list rows.
+- `--r-2` **10px** - every surface: page cards, panels, popovers, the modal, the preview frame.
+- `--r-3` **14px** - containers that hold surfaces: the section backdrop.
 
 A pill, a circle, or a square-cornered control is a bug. The one intentional circle is the I/O port dot,
 which is a dot because it is a point of connection.
@@ -81,7 +81,7 @@ which is a dot because it is a point of connection.
 - `--ui`: the platform's own UI stack. Chrome, headings, labels, prose. No webfont: the viewer is served
   from `node:http` with zero dependencies and must paint correctly offline, on the first frame.
 - `--mono`: the platform's own mono stack. Reserved for **data**: routes, `file:line`, counts, link labels,
-  measurements. Mono here is not a costume for "technical" — every string set in it is an identifier or a
+  measurements. Mono here is not a costume for "technical" - every string set in it is an identifier or a
   number the developer will compare against something else.
 
 Hierarchy comes from weight and color, not scale. The size range across the whole UI is 11px to 19px.

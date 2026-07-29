@@ -1,4 +1,4 @@
-// routemap viewer
+// sitelines viewer
 const $ = (s) => document.querySelector(s);
 const el = (t, c, txt) => { const n = document.createElement(t); if (c) n.className = c; if (txt != null) n.textContent = txt; return n; };
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -22,9 +22,9 @@ const COL = 330, ROW = 232, PAD = 96, W = 232, H = 188, WS = 172, HS = 74, PER_C
 
 const S = {
   flow: null, edits: [], sel: null, linkFrom: null,
-  cfg: null, mode: 'site',            // which view tab is active (from .routemap/views.json)
+  cfg: null, mode: 'site',            // which view tab is active (from .sitelines/views.json)
   cam: { x: 60, y: 60, k: 0.8 },
-  nodes: new Map(), pos: new Map(), dom: new Map(), io: new Map(), depth: new Map(), colX: new Map(),
+  nodes: new Map(), pos: new Map(), dom: new Map(), io: new Map(), ioAll: new Map(), depth: new Map(), colX: new Map(),
   edges: [], collapsed: new Set(), groups: new Map(),
   // page JS is off by default: previews are the real pages, and one with a
   // polling loop or a failing API call will peg the renderer 40 frames over.
@@ -32,8 +32,8 @@ const S = {
   q: '',
 };
 
-const CACHE_KEY = 'routemap:cache:v1';
-const THEME_KEY = 'routemap:theme';
+const CACHE_KEY = 'sitelines:cache:v1';
+const THEME_KEY = 'sitelines:theme';
 
 boot();
 
@@ -43,7 +43,7 @@ async function boot() {
   try {
     const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
     if (c && c.root === location.host + (c.flow?.root || '')) { paint(c.flow, c.cfg, c.edits || []); fit(); }
-  } catch { /* stale cache shape — ignore */ }
+  } catch { /* stale cache shape - ignore */ }
   try {
     await reload();
   } catch (e) {
@@ -56,9 +56,9 @@ async function boot() {
 function fatal(e) {
   const box = el('div', 'fatal');
   box.appendChild(icon('i-alert'));
-  box.appendChild(el('b', null, 'Cannot reach the routemap server'));
+  box.appendChild(el('b', null, 'Cannot reach the sitelines server'));
   const msg = el('span');
-  msg.append('The viewer is open but ', el('code', null, 'routemap serve'), ' is not answering. Restart it, then reload this page.');
+  msg.append('The viewer is open but ', el('code', null, 'sitelines serve'), ' is not answering. Restart it, then reload this page.');
   box.appendChild(msg);
   box.appendChild(el('code', null, String(e && e.message || e)));
   document.body.appendChild(box);
@@ -123,8 +123,72 @@ function inView(n) {
 
 async function saveViews() {
   S.cfg.active = S.mode;
+  renderTabs(); recompute(); render(); renderRail();
   await fetch('/api/views', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(S.cfg) });
-  recompute(); render(); renderRail();
+}
+
+/* ---------- views ---------- */
+// "everything" is the base view. It always shows every page and never takes a
+// rule, so filtering while it is active creates a new view rather than quietly
+// turning the one complete picture of the site into a partial one.
+const isBase = (v) => !!(v || view()).base;
+const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24) || 'view';
+const tidy = (pat) => String(pat).replace(/[/*]+/g, ' ').trim() || 'root';
+const labelFor = (kind, pat) => (kind === 'include' ? tidy(pat) : `no ${tidy(pat)}`);
+
+function newView(label, rule) {
+  const taken = new Set(S.cfg.views.map((v) => v.id));
+  let id = slug(label), i = 2;
+  while (taken.has(id)) id = `${slug(label)}-${i++}`;
+  const v = {
+    id, label,
+    include: rule && rule.kind === 'include' ? [rule.pat] : [],
+    exclude: rule && rule.kind === 'exclude' ? [rule.pat] : [],
+    collapsed: [],
+  };
+  S.cfg.views.push(v);
+  S.mode = id;
+  return v;
+}
+
+// one entry point for every "hide this" affordance, so the base-view rule holds
+// no matter which control the user reached for
+function addExcludeRule(pat, kind = 'exclude') {
+  if (isBase()) {
+    const v = newView(labelFor(kind, pat), { kind, pat });
+    toast(`“everything” always shows every page, so this went into a new view: ${v.label}`);
+  } else {
+    const v = view();
+    v[kind] = [...new Set([...(v[kind] || []), pat])];
+    if (kind === 'exclude') v.include = (v.include || []).filter((p) => p !== pat);
+    toast(`${view().label}: ${kind === 'include' ? 'only ' : 'hiding '}${pat}`);
+  }
+  saveViews();
+}
+
+async function promptNewView() {
+  const v = await modal('New view', [
+    { name: 'label', label: 'Name, for example “docs only” or “no admin”', value: '' },
+    { name: 'kind', label: 'First rule', type: 'select', options: ['hide these routes', 'show only these routes'], value: 'hide these routes' },
+    { name: 'pat', label: 'Route pattern (optional), for example /admin/**', value: '' },
+  ], 'Create view');
+  if (!v || !v.label.trim()) return;
+  const kind = v.kind.startsWith('show only') ? 'include' : 'exclude';
+  newView(v.label.trim(), v.pat.trim() ? { kind, pat: v.pat.trim() } : null);
+  S.sel = null; $('#inspect').hidden = true;
+  await saveViews();
+  fit();
+}
+
+async function deleteView() {
+  const v = view();
+  if (isBase(v)) return;
+  S.cfg.views = S.cfg.views.filter((x) => x !== v);
+  S.mode = 'all';
+  S.sel = null; $('#inspect').hidden = true;
+  toast(`Deleted the view “${v.label}”`);
+  await saveViews();
+  fit();
 }
 
 function renderLayerCount() {
@@ -141,12 +205,26 @@ function renderTabs() {
     b.type = 'button';
     b.dataset.view = v.id;
     b.setAttribute('aria-pressed', String(v.id === S.mode));
-    b.title = `${v.include?.length ? 'Only ' + v.include.join(', ') : 'All routes'}${v.exclude?.length ? ', minus ' + v.exclude.join(', ') : ''}  (key ${i + 1})`;
+    b.title = v.base
+      ? `Every page, always. Filtering here creates a new view.  (key ${i + 1})`
+      : `${v.include?.length ? 'Only ' + v.include.join(', ') : 'All routes'}${v.exclude?.length ? ', minus ' + v.exclude.join(', ') : ''}  (key ${i + 1})`;
     box.appendChild(b);
   });
+  const add = el('button', 'tab add');
+  add.type = 'button';
+  add.dataset.add = '1';
+  add.appendChild(icon('i-plus', 'icon sm'));
+  add.title = 'New view: a saved subset of the map';
+  add.setAttribute('aria-label', 'New view');
+  box.appendChild(add);
 }
 
-const visibleEdge = (e) => (e.kind !== 'js-shared' || S.filters.shared)
+// A link that appears on more than a handful of pages is chrome: a header, a
+// footer, a nav partial. It is real, but drawing it once per page hides
+// everything that is specific to a page, so it folds away by default.
+const sitewide = (e) => e.kind === 'js-shared' || e.repeated === true;
+
+const visibleEdge = (e) => (!sitewide(e) || S.filters.shared)
   && S.nodes.has(e.from) && S.nodes.has(e.to) && inView(S.nodes.get(e.from)) && inView(S.nodes.get(e.to));
 
 function allEdges() {
@@ -187,25 +265,15 @@ function renderId(id) {
   return S.collapsed.has(g) && inView(n) ? groupId(g) : id;
 }
 
-function recompute() {
-  const raw = allEdges().filter((e) => (e.kind !== 'js-shared' || S.filters.shared) && S.nodes.has(e.from) && S.nodes.has(e.to));
-  S.collapsed = collapsedSet();
-  S.groups = new Map();
-  for (const n of S.nodes.values()) {
-    if (n.type !== 'page' || !inView(n)) continue;
-    const g = groupOf(n);
-    if (!S.collapsed.has(g)) continue;
-    if (!S.groups.has(g)) S.groups.set(g, { id: groupId(g), label: g, title: `/${g}/`, type: 'section', group: g, members: [], file: null });
-    S.groups.get(g).members.push(n);
-  }
-
+// collapse links into what a card actually shows: one wire per neighbour for a
+// collapsed directory, one per control otherwise
+function fold(list) {
   const seenEdge = new Map();
   const edges = [];
-  for (const e of raw.filter(visibleEdge)) {
+  for (const e of list) {
     const from = renderId(e.from), to = renderId(e.to);
     if (from === to) continue;                       // link inside a collapsed section
     const folded = from !== e.from || to !== e.to;
-    // a collapsed section gets ONE wire per neighbour, not one per button
     const k = folded ? `${from}>${to}` : `${from}>${to}>${e.label}`;
     const hit = seenEdge.get(k);
     if (hit) { hit.details.push(e); continue; }
@@ -220,11 +288,39 @@ function recompute() {
     const n = e.details.length;
     e.label = n === 1 ? e.details[0].label : `${n} links`;
   }
-  S.edges = edges;
-  S.io = new Map();
-  for (const n of S.nodes.values()) if (inView(n) && renderId(n.id) === n.id) S.io.set(n.id, { in: [], out: [] });
-  for (const s of S.groups.values()) S.io.set(s.id, { in: [], out: [] });
-  for (const e of edges) { S.io.get(e.from)?.out.push(e); S.io.get(e.to)?.in.push(e); }
+  return edges;
+}
+
+function ioOf(edges) {
+  const io = new Map();
+  for (const n of S.nodes.values()) if (inView(n) && renderId(n.id) === n.id) io.set(n.id, { in: [], out: [] });
+  for (const s of S.groups.values()) io.set(s.id, { in: [], out: [] });
+  for (const e of edges) { io.get(e.from)?.out.push(e); io.get(e.to)?.in.push(e); }
+  return io;
+}
+
+function recompute() {
+  S.collapsed = collapsedSet();
+  S.groups = new Map();
+  for (const n of S.nodes.values()) {
+    if (n.type !== 'page' || !inView(n)) continue;
+    const g = groupOf(n);
+    if (!S.collapsed.has(g)) continue;
+    if (!S.groups.has(g)) S.groups.set(g, { id: groupId(g), label: g, title: `/${g}/`, type: 'section', group: g, members: [], file: null });
+    S.groups.get(g).members.push(n);
+  }
+
+  const all = allEdges().filter((e) => S.nodes.has(e.from) && S.nodes.has(e.to)
+    && inView(S.nodes.get(e.from)) && inView(S.nodes.get(e.to)));
+
+  // Two sets, deliberately. S.edges / S.io are what is DRAWN, so the wires and
+  // the port dots agree with each other. S.ioAll is what EXISTS in this view,
+  // and every judgement comes from it: a page reachable only through the footer
+  // is reachable, and calling it an orphan because the footer is folded away
+  // would be the tool lying about the site.
+  S.edges = fold(all.filter(visibleEdge));
+  S.io = ioOf(S.edges);
+  S.ioAll = ioOf(fold(all));
 
   const entry = entryNode();
   S.depth = new Map();
@@ -233,7 +329,7 @@ function recompute() {
     const q = [entry];
     while (q.length) {
       const cur = q.shift();
-      for (const e of S.io.get(cur)?.out || []) if (!S.depth.has(e.to)) { S.depth.set(e.to, S.depth.get(cur) + 1); q.push(e.to); }
+      for (const e of S.ioAll.get(cur)?.out || []) if (!S.depth.has(e.to)) { S.depth.set(e.to, S.depth.get(cur) + 1); q.push(e.to); }
     }
   }
   layout();
@@ -254,8 +350,9 @@ function entryNode() {
   if (view().entry && vis.some((n) => n.id === view().entry)) return view().entry;
   if (vis.some((n) => n.id === '/')) return '/';
   const depth = (id) => id.split('/').filter(Boolean).length;
+  const io = S.ioAll || S.io;
   return vis.slice().sort((a, b) => depth(a.id) - depth(b.id)
-    || (S.io.get(b.id)?.out.length || 0) - (S.io.get(a.id)?.out.length || 0))[0].id;
+    || (io.get(b.id)?.out.length || 0) - (io.get(a.id)?.out.length || 0))[0].id;
 }
 
 /* ---------- layout ---------- */
@@ -343,32 +440,36 @@ function drawColumns(wires) {
   }
 }
 
-// Backdrop behind a directory's pages. One box per (directory, depth column):
-// a group whose pages sit at three different depths gets three boxes, not one
-// giant box that also swallows every unrelated card standing between them.
+// Backdrop behind a directory's pages. One box per vertical run of same-directory
+// cards, so a box only ever contains that directory. A single box spanning a
+// group's full bounding rectangle would swallow every unrelated card standing
+// between its first and last page.
 function drawSections(host) {
-  const boxes = new Map();   // `${group}|${col}` -> box
+  const boxes = new Map();   // `${group}|${x}` -> box, one per column of cards
   const total = new Map();   // group -> how many of its pages are on screen
   for (const [id, p] of S.pos) {
     const n = nodeOf(id);
     if (!n || isGroup(n) || (n.type !== 'page' && n.type !== 'ghost')) continue;
     const g = groupOf(n);
     total.set(g, (total.get(g) || 0) + 1);
-    const k = `${g}|${p.col}`;
-    const b = boxes.get(k) || { g, col: p.col, x1: 1e9, y1: 1e9, x2: -1e9, y2: -1e9, n: 0 };
+    const k = `${g}|${Math.round(p.x)}`;
+    const b = boxes.get(k) || { g, x1: 1e9, y1: 1e9, x2: -1e9, y2: -1e9, n: 0 };
     b.x1 = Math.min(b.x1, p.x); b.y1 = Math.min(b.y1, p.y);
     b.x2 = Math.max(b.x2, p.x + p.w); b.y2 = Math.max(b.y2, p.y + p.h); b.n++;
     boxes.set(k, b);
   }
   const drawn = [...boxes.values()].filter((b) => b.n > 1);
-  // only the leftmost drawn box of a directory carries its label
-  const labelCol = new Map();
-  for (const b of drawn) if (!labelCol.has(b.g) || b.col < labelCol.get(b.g)) labelCol.set(b.g, b.col);
+  // only the leftmost, then topmost, box of a directory carries its label
+  const labelBox = new Map();
+  for (const b of drawn) {
+    const cur = labelBox.get(b.g);
+    if (!cur || b.x1 < cur.x1 || (b.x1 === cur.x1 && b.y1 < cur.y1)) labelBox.set(b.g, b);
+  }
 
   for (const b of drawn) {
     const z = el('div', 'section');
     z.style.cssText = `left:${b.x1 - 16}px;top:${b.y1 - 42}px;width:${b.x2 - b.x1 + 32}px;height:${b.y2 - b.y1 + 58}px`;
-    if (labelCol.get(b.g) === b.col) {
+    if (labelBox.get(b.g) === b) {
       const head = el('button', 'section-head');
       head.type = 'button';
       head.appendChild(icon('i-chev-down', 'icon'));
@@ -383,17 +484,18 @@ function drawSections(host) {
 }
 
 function pageCard(n, p) {
-  const io = S.io.get(n.id) || { in: [], out: [] };
-  if (isGroup(n)) return groupCard(n, p, io);
+  const io = S.io.get(n.id) || { in: [], out: [] };            // drawn: ports must match wires
+  const tot = S.ioAll.get(n.id) || io;                          // real: counts and tags
+  if (isGroup(n)) return groupCard(n, p, io, tot);
   const d = el('div', `node kind-${n.type}`);
   d.style.cssText = `left:${p.x}px;top:${p.y}px;width:${p.w}px;--in:${Math.min(p.col * 40, 320)}ms`;
   d.dataset.id = n.id;
   d.tabIndex = 0;
-  d.setAttribute('aria-label', `${n.id}, ${io.in.length} entrances, ${io.out.length} exits`);
+  d.setAttribute('aria-label', `${n.id}, ${tot.in.length} entrances, ${tot.out.length} exits`);
 
   const h = el('div', 'node-head');
   h.appendChild(el('span', 'node-route', n.type === 'page' || n.type === 'ghost' ? (n.label || '/') : n.id));
-  h.appendChild(el('span', 'node-badge', n.type === 'page' || n.type === 'ghost' ? `${io.in.length} in · ${io.out.length} out` : n.type));
+  h.appendChild(el('span', 'node-badge', n.type === 'page' || n.type === 'ghost' ? `${tot.in.length} in · ${tot.out.length} out` : n.type));
   d.appendChild(h);
 
   if (n.type === 'page' || n.type === 'ghost') {
@@ -404,8 +506,8 @@ function pageCard(n, p) {
     d.appendChild(t);
     const f = el('div', 'node-foot');
     f.appendChild(el('span', null, n.id));
-    if (!io.in.length && n.id !== entryNode()) f.appendChild(el('span', 'tag warn', 'orphan'));
-    if (!io.out.length) f.appendChild(el('span', 'tag', 'dead end'));
+    if (!tot.in.length && n.id !== entryNode()) f.appendChild(el('span', 'tag warn', 'orphan'));
+    if (!tot.out.length) f.appendChild(el('span', 'tag', 'dead end'));
     d.appendChild(f);
     d.appendChild(ports(io.in, 'in'));
     d.appendChild(ports(io.out, 'out'));
@@ -414,7 +516,7 @@ function pageCard(n, p) {
   return d;
 }
 
-function groupCard(n, p, io) {
+function groupCard(n, p, io, tot) {
   const d = el('div', 'node is-group');
   d.style.cssText = `left:${p.x}px;top:${p.y}px;width:${p.w}px;--in:${Math.min(p.col * 40, 320)}ms`;
   d.dataset.id = n.id;
@@ -422,7 +524,7 @@ function groupCard(n, p, io) {
   const h = el('div', 'node-head');
   h.appendChild(icon('i-chev-right', 'icon sm'));
   h.appendChild(el('span', 'node-route', `/${n.label}/`));
-  h.appendChild(el('span', 'node-badge', `${io.in.length} in · ${io.out.length} out`));
+  h.appendChild(el('span', 'node-badge', `${tot.in.length} in · ${tot.out.length} out`));
   d.appendChild(h);
 
   const body = el('div', 'group-body');
@@ -441,6 +543,24 @@ function groupCard(n, p, io) {
   d.appendChild(ports(io.out, 'out'));
   S.dom.set(n.id, d);
   return d;
+}
+
+// Port geometry, mirrored from .ports / .port in style.css. A wire ends exactly
+// on the dot that represents it, so the dots are the wire's real terminals
+// rather than decoration beside them. Keep these three in sync with the CSS.
+const PORT_TOP = 30, PORT_STEP = 14, PORT_R = 4.5, PORT_CAP = 7;
+const PORTED = new Set(['page', 'ghost', 'section']);
+
+// where on a card's edge this particular link attaches
+function anchor(id, list, edge, side) {
+  const p = S.pos.get(id);
+  const n = nodeOf(id);
+  const x = side === 'out' ? p.x + p.w : p.x;
+  if (!n || !PORTED.has(n.type)) return { x, y: p.y + p.h / 2 };   // api/external cards show no ports
+  const i = Math.max(0, list.indexOf(edge));
+  // everything past the cap collapses onto the small "more" dot, exactly as drawn
+  if (i >= PORT_CAP) return { x, y: p.y + PORT_TOP + PORT_CAP * PORT_STEP + 2.5 };
+  return { x, y: p.y + PORT_TOP + i * PORT_STEP + PORT_R };
 }
 
 // the dots down each side of a card: entrances on the left, exits on the right
@@ -539,8 +659,11 @@ function drawWires() {
     if (!a || !b) continue;
     const key = `${e.from}>${e.to}`;
     const n = seen.get(key) || 0; seen.set(key, n + 1);
-    const x1 = a.x + a.w, y1 = a.y + a.h / 2 + n * 9;
-    const x2 = b.x, y2 = b.y + b.h / 2 - n * 9;
+    // start and end on the ports themselves; no synthetic fan-out offset is
+    // needed because two links out of one page already own two different dots
+    const A = anchor(e.from, S.io.get(e.from)?.out || [], e, 'out');
+    const B = anchor(e.to, S.io.get(e.to)?.in || [], e, 'in');
+    const x1 = A.x, y1 = A.y, x2 = B.x, y2 = B.y;
     const dx = Math.max(60, Math.abs(x2 - x1) * 0.45);
     const d = `M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}`;
     const data = { 'data-from': e.from, 'data-to': e.to, 'data-wire': key };
@@ -575,7 +698,7 @@ function cls(e) {
 
 function applyView() {
   $('#canvas').style.transform = `translate(${S.cam.x}px,${S.cam.y}px) scale(${S.cam.k})`;
-  // zoomed out, wire labels and thumbnails are unreadable anyway — drop them
+  // zoomed out, wire labels and thumbnails are unreadable anyway - drop them
   // from the render tree instead of compositing them
   $('#stage').dataset.detail = S.cam.k < 0.26 ? 'low' : 'high';
 }
@@ -600,10 +723,11 @@ function renderRail() {
   const pages = [...S.nodes.values()].filter((n) => inView(n) && n.type === 'page' && renderId(n.id) === n.id);
   const depths = pages.map((n) => S.depth.get(n.id)).filter((d) => d != null);
   const box = $('#stats'); box.textContent = '';
+  const hiddenChrome = S.filters.shared ? 0 : allEdges().filter(sitewide).length;
   const rows = [
     ['View', view().label || S.mode],
     ['Pages', `${pages.length} of ${S.flow.nodes.filter((n) => n.type === 'page').length}`],
-    ['Links', S.edges.length],
+    ['Links drawn', hiddenChrome ? `${S.edges.length} of ${S.edges.length + hiddenChrome}` : String(S.edges.length)],
     ['Deepest', depths.length ? `${Math.max(...depths)} clicks` : '0 clicks'],
     ['Scanned', (S.flow.generatedAt || '').slice(0, 16).replace('T', ' ')],
   ];
@@ -614,15 +738,15 @@ function renderRail() {
     box.appendChild(r);
   }
 
-  // ENTRY POINTS — where a visit can start
+  // ENTRY POINTS - where a visit can start
   const entry = entryNode();
-  const ins = pages.filter((n) => n.id === entry || !(S.io.get(n.id)?.in.length));
+  const ins = pages.filter((n) => n.id === entry || !(S.ioAll.get(n.id)?.in.length));
   $('#inCount').textContent = ins.length;
   fillList('#inputs', ins.map((n) => ({
     label: n.id, sub: n.id === entry ? 'front door' : 'direct URL only', go: n.id, warn: n.id !== entry,
   })), 'Nothing can start a visit in this view.');
 
-  // LEAVES THE SITE — off-site links, API calls, and broken targets
+  // LEAVES THE SITE - off-site links, API calls, and broken targets
   const outs = new Map();
   for (const e of S.edges) {
     const t = S.nodes.get(e.to);
@@ -658,7 +782,7 @@ function renderIssues(pages, entry) {
   for (const d of (i.deadLinks || []).filter((d) => shown.has(d.from)).slice(0, 12)) {
     add(true, `Dead link to ${d.to}`, `${d.from} · “${d.label}”${d.file ? ` · ${d.file}:${d.line}` : ''}`, d.from);
   }
-  for (const n of pages.filter((n) => !(S.io.get(n.id)?.in.length) && n.id !== entry).slice(0, 10)) {
+  for (const n of pages.filter((n) => !(S.ioAll.get(n.id)?.in.length) && n.id !== entry).slice(0, 10)) {
     add(false, `Orphan ${n.id}`, 'No inbound link, unreachable by clicking', n.id);
   }
   for (const n of pages.filter((n) => S.depth.get(n.id) == null && n.id !== entry).slice(0, 10)) {
@@ -667,8 +791,11 @@ function renderIssues(pages, entry) {
   for (const n of pages.filter((n) => (S.depth.get(n.id) ?? 0) > 3).slice(0, 8)) {
     add(false, `Deep ${n.id}`, `${S.depth.get(n.id)} clicks from the entry`, n.id);
   }
-  for (const n of pages.filter((n) => (S.io.get(n.id)?.out.length || 0) > 12).slice(0, 5)) {
-    add(false, `Hub ${n.id}`, `${S.io.get(n.id).out.length} exits, consider grouping`, n.id);
+  for (const n of pages.filter((n) => !(S.ioAll.get(n.id)?.out.length)).slice(0, 8)) {
+    add(false, `Dead end ${n.id}`, 'No way out, not even back', n.id);
+  }
+  for (const n of pages.filter((n) => (S.ioAll.get(n.id)?.out.length || 0) > 12).slice(0, 5)) {
+    add(false, `Hub ${n.id}`, `${S.ioAll.get(n.id).out.length} exits, consider grouping`, n.id);
   }
   $('#issueCount').textContent = count || '';
   if (!count) {
@@ -684,6 +811,11 @@ function renderExcluded() {
   const box = $('#excluded'); box.textContent = '';
   const hidden = S.flow.nodes.filter((n) => n.type === 'page' && excluded(n.id));
   $('#exCount').textContent = hidden.length;
+  $('#viewDelete').hidden = isBase(v);
+  if (isBase(v)) {
+    box.appendChild(el('div', 'empty-note', 'The base view always shows every page. Add a rule below, or press + on the view tabs, to start a filtered view of your own.'));
+    return;
+  }
 
   for (const kind of ['include', 'exclude']) {
     for (const pat of v[kind] || []) {
@@ -761,7 +893,9 @@ function select(id, keepScroll) {
   if (grouped) renderGroupMembers(n);
   else { $('#members')?.remove(); setPreview(id, Number(document.querySelector('.devices .on')?.dataset.w || 1280)); }
 
-  const io = S.io.get(id) || { in: [], out: [] };
+  // the inspector is an editing surface, so it lists every link on the page,
+  // including the site-wide ones folded out of the drawing
+  const io = S.ioAll.get(id) || { in: [], out: [] };
   $('#exitCount').textContent = io.out.length;
   $('#entCount').textContent = io.in.length;
 
@@ -876,8 +1010,8 @@ function renderEdits() {
   }
   for (const e of list) {
     const row = el('div', 'row pending');
-    row.appendChild(el('span', 'k', e.op));
-    row.appendChild(el('span', null, e.summary || JSON.stringify(e)));
+    row.appendChild(el('span', 'op', e.op));
+    row.appendChild(el('span', 'grow', e.summary || JSON.stringify(e)));
     const x = iconBtn('i-close', 'x', 'Discard this change');
     x.onclick = () => unqueue(e.id);
     row.appendChild(x);
@@ -998,6 +1132,7 @@ function wireUI() {
 
   $('#tabs').onclick = (ev) => {
     const b = ev.target.closest('.tab'); if (!b) return;
+    if (b.dataset.add) return promptNewView();
     S.mode = b.dataset.view;
     S.sel = null; $('#inspect').hidden = true;
     renderTabs(); recompute(); render(); renderRail(); fit();
@@ -1007,36 +1142,27 @@ function wireUI() {
 
   const addRule = (kind) => {
     const pat = $('#ruleInput').value.trim();
-    if (!pat) return toast('Type a route pattern first, for example /admin/**');
-    const v = view();
-    v[kind] = [...new Set([...(v[kind] || []), pat])];
+    if (!pat) return toast('Type a route pattern first, for example /docs/**');
     $('#ruleInput').value = '';
-    toast(`${view().label}: ${kind === 'include' ? 'only ' : 'hiding '}${pat}`);
-    saveViews();
+    addExcludeRule(pat, kind);
   };
   $('#ruleAdd').onclick = () => addRule('exclude');
   $('#ruleAddIn').onclick = () => addRule('include');
   $('#ruleInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addRule('exclude'); } });
+  $('#viewDelete').onclick = () => deleteView();
 
   $('#exPage').onclick = () => {
     if (!S.sel) return;
-    const v = view();
-    v.exclude = [...new Set([...(v.exclude || []), S.sel])];
-    v.include = (v.include || []).filter((p) => p !== S.sel);
-    toast(`${S.sel} hidden from “${v.label}”`);
+    const pat = S.sel;
     S.sel = null; $('#inspect').hidden = true;
-    saveViews();
+    addExcludeRule(pat);
   };
   $('#exGroup').onclick = () => {
     if (!S.sel) return;
     const seg = S.sel.split('/').filter(Boolean)[0];
-    if (!seg) return toast('The root page is not inside a section.');
-    const pat = `/${seg}/**`;
-    const v = view();
-    v.exclude = [...new Set([...(v.exclude || []), pat])];
-    toast(`${pat} hidden from “${v.label}”`);
+    if (!seg) return toast('The root page is not inside a directory.');
     S.sel = null; $('#inspect').hidden = true;
-    saveViews();
+    addExcludeRule(`/${seg}/**`);
   };
 
   $('.zoom').onclick = (ev) => {
@@ -1073,9 +1199,9 @@ function wireUI() {
     try {
       const r = await fetch('/api/rescan', { method: 'POST' }).then((x) => x.json());
       await reload();
-      toast(r.ok ? 'Rescanned' : 'Rescan failed. Check the terminal running routemap.');
+      toast(r.ok ? 'Rescanned' : 'Rescan failed. Check the terminal running sitelines.');
     } catch {
-      toast('Rescan failed. Is routemap still running?');
+      toast('Rescan failed. Is sitelines still running?');
     } finally {
       b.disabled = false;
     }
@@ -1088,9 +1214,9 @@ function wireUI() {
   $('#copyPrompt').onclick = async () => {
     const list = pending();
     if (!list.length) return toast('Nothing queued to copy.');
-    const txt = 'Apply my routemap changes (.routemap/edits.json):\n' + list.map((e) => `- [${e.op}] ${e.summary}`).join('\n');
+    const txt = 'Apply my sitelines changes (.sitelines/edits.json):\n' + list.map((e) => `- [${e.op}] ${e.summary}`).join('\n');
     try { await navigator.clipboard.writeText(txt); toast('Prompt copied'); }
-    catch { toast('Could not reach the clipboard. Open .routemap/edits.json instead.'); }
+    catch { toast('Could not reach the clipboard. Open .sitelines/edits.json instead.'); }
   };
 
   $('#insClose').onclick = () => { $('#inspect').hidden = true; S.sel = null; applyFilterDim(); };
@@ -1109,7 +1235,7 @@ function wireUI() {
       { name: 'trigger', label: 'Button text on that page', value: '' },
     ], 'Queue page');
     if (!v || !v.route) return;
-    await queue({ op: 'add-page', route: v.route, label: v.label, summary: `New page ${v.route}${v.label ? ` — “${v.label}”` : ''}` });
+    await queue({ op: 'add-page', route: v.route, label: v.label, summary: `New page ${v.route}${v.label ? ` - “${v.label}”` : ''}` });
     if (v.from) await queue({ op: 'add-link', from: v.from, to: v.route, label: v.trigger || v.label || v.route, via: 'link', summary: `Add “${v.trigger || v.label}” on ${v.from} to ${v.route}` });
   };
   $('#note').addEventListener('change', async (e) => {

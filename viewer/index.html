@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>routemap</title>
+<title>sitelines</title>
 <meta name="color-scheme" content="light dark">
 <script>
   // Set the theme before first paint so a dark-mode user never sees a light flash.
   try {
-    var t = localStorage.getItem('routemap:theme');
+    var t = localStorage.getItem('sitelines:theme');
     if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
   } catch (e) { /* private mode */ }
 </script>
@@ -47,7 +47,7 @@
 </svg>
 
 <header class="bar">
-  <span class="brand"><svg class="icon brand-mark"><use href="#i-mark"/></svg><b>routemap</b></span>
+  <span class="brand"><svg class="icon brand-mark"><use href="#i-mark"/></svg><b>sitelines</b></span>
   <span class="sep"></span>
   <nav class="tabs" id="tabs" aria-label="Views"></nav>
   <span class="crumb" id="rootLabel">&nbsp;</span>
@@ -61,7 +61,7 @@
     </button>
     <div class="pop" id="layers" hidden>
       <div class="pop-label">Show</div>
-      <label class="tog"><input type="checkbox" id="fShared"> Links wired by shared scripts</label>
+      <label class="tog"><input type="checkbox" id="fShared"> Site-wide nav and footer links</label>
       <label class="tog"><input type="checkbox" id="fApi"> API endpoints</label>
       <label class="tog"><input type="checkbox" id="fExt"> External links</label>
       <hr>
@@ -95,10 +95,11 @@
     <h3>Hidden in this view <span class="cnt" id="exCount"></span></h3>
     <div id="excluded" class="rows"></div>
     <div class="rulebar">
-      <input id="ruleInput" placeholder="/admin/**" aria-label="Route pattern">
+      <input id="ruleInput" placeholder="/docs/**" aria-label="Route pattern">
       <button class="btn sm" id="ruleAdd">Hide</button>
       <button class="btn sm" id="ruleAddIn">Only</button>
     </div>
+    <div class="viewctl"><button class="btn sm danger" id="viewDelete" hidden>Delete this view</button></div>
 
     <h3>Issues <span class="cnt" id="issueCount"></span></h3>
     <div id="issues" class="issues"></div>
@@ -181,7 +182,7 @@
   <div id="editList" class="rows"></div>
   <div class="drawer-foot">
     <button class="btn" id="copyPrompt">Copy prompt</button>
-    <span class="muted">Then tell your agent <code>apply my routemap changes</code></span>
+    <span class="muted">Then tell your agent <code>apply my sitelines changes</code></span>
   </div>
 </div>
 

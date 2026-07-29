@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// routemap CLI — scan a site's navigation, then browse and edit it in a map.
+// sitelines CLI - scan a site's navigation, then browse and edit it in a map.
 import path from 'node:path';
 import fs from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
@@ -17,34 +17,45 @@ const version = (() => {
   catch { return '0.0.0'; }
 })();
 
-const HELP = `routemap ${version} — map, audit, and edit a site's navigation
+const HELP = `sitelines ${version} - map, audit, and edit a site's navigation
 
-  routemap scan [--root DIR] [--out DIR]
-      Read every page and every link between them. Writes .routemap/flow.json.
+  sitelines scan [--root DIR] [--out DIR]
+      Read every page and every link between them. Writes .sitelines/flow.json.
       --root defaults to the first of public, site, www, static, src/pages,
       src/routes, src/app, app/pages, pages, app, docs that exists.
 
-  routemap serve [--root DIR] [--out DIR] [--port N] [--open]
+  sitelines serve [--root DIR] [--out DIR] [--port N] [--open]
       Open the map in a browser. Requires a scan first.
 
-  routemap open [--root DIR] [--port N]
+  sitelines open [--root DIR] [--port N]
       Scan, then serve, then open the browser. The usual entry point.
 
-  routemap skill install [--global|--project] [--dir PATH] [--force]
-  routemap skill uninstall [--global|--project] [--dir PATH]
-      Install routemap as a Claude Code skill so /routemap works and Claude can
+  sitelines demo [--dir sitelines-demo] [--port N]
+      Copy the bundled 20-page example site into ./sitelines-demo, map it, and
+      open it. Nothing outside that directory is touched. Use this to see what
+      sitelines does before pointing it at your own project.
+
+  sitelines skill install [--global|--project] [--dir PATH] [--force]
+  sitelines skill uninstall [--global|--project] [--dir PATH]
+      Install sitelines as a Claude Code skill so /sitelines works and Claude can
       apply the changes you queue in the map. --global is ~/.claude/skills,
       --project is ./.claude/skills. Defaults to --global.
 
-  routemap version
-  routemap help
+  sitelines agents [install|uninstall] [--dir PATH]
+      Same instructions, as an AGENTS.md block in your project root. Codex,
+      opencode, Cursor, Zed and Gemini CLI read that file, so this is how those
+      agents learn to apply your queued changes. Appends to an existing
+      AGENTS.md rather than overwriting it.
 
-State lives in .routemap/ next to where you run it. Add it to .gitignore, or
+  sitelines version
+  sitelines help
+
+State lives in .sitelines/ next to where you run it. Add it to .gitignore, or
 commit it to share the map's layout and notes with your team.`;
 
 function run(file, args, opts = {}) {
   const r = spawnSync(process.execPath, [path.join(scripts, file), ...args], { stdio: 'inherit', ...opts });
-  if (r.error) { console.error(`routemap: ${r.error.message}`); process.exit(1); }
+  if (r.error) { console.error(`sitelines: ${r.error.message}`); process.exit(1); }
   return r.status ?? 0;
 }
 
@@ -84,13 +95,43 @@ switch (cmd) {
     break;
   }
 
+  case 'demo': {
+    const dest = path.resolve(process.cwd(), flagValue(rest, 'dir', 'sitelines-demo'));
+    const src = path.join(pkgRoot, 'examples', 'demo-site');
+    if (!fs.existsSync(src)) { console.error(`sitelines: the bundled example is missing at ${src}`); process.exit(1); }
+    if (fs.existsSync(dest) && fs.readdirSync(dest).length) {
+      console.log(`sitelines: reusing the existing ${path.basename(dest)}/`);
+    } else {
+      fs.mkdirSync(dest, { recursive: true });
+      fs.cpSync(src, dest, { recursive: true });
+      console.log(`sitelines: copied the example site to ${path.basename(dest)}/ (20 pages)`);
+    }
+    const port = flagValue(rest, 'port', '4370');
+    // keep the demo's state inside the demo, so it never mixes with the map of
+    // whatever real project the user runs this from
+    const args = ['--root', dest, '--out', path.join(dest, '.sitelines'), '--port', port];
+    const code = run('scan.mjs', args);
+    if (code !== 0) process.exit(code);
+    console.log('sitelines: this example has deliberate faults - 2 dead links, 3 orphans, a dead end, and a page 4 clicks deep');
+    setTimeout(() => openBrowser(`http://localhost:${port}`), 700);
+    process.exit(run('serve.mjs', args));
+    break;
+  }
+
   case 'skill': {
     const sub = rest[0];
     const args = rest.slice(1);
     if (sub === 'install') process.exit(run('install-skill.mjs', args));
     if (sub === 'uninstall') process.exit(run('install-skill.mjs', ['--uninstall', ...args]));
-    console.error('routemap: expected `routemap skill install` or `routemap skill uninstall`');
+    console.error('sitelines: expected `sitelines skill install` or `sitelines skill uninstall`');
     process.exit(1);
+    break;
+  }
+
+  case 'agents': {
+    const sub = rest[0] === 'uninstall' ? ['--uninstall'] : [];
+    const args = rest.filter((a) => a !== 'install' && a !== 'uninstall');
+    process.exit(run('install-skill.mjs', ['--agents', ...sub, ...args]));
     break;
   }
 
@@ -108,7 +149,7 @@ switch (cmd) {
     break;
 
   default:
-    console.error(`routemap: unknown command "${cmd}"\n`);
+    console.error(`sitelines: unknown command "${cmd}"\n`);
     console.log(HELP);
     process.exit(1);
 }
