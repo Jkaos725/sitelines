@@ -1,0 +1,11 @@
+# routemap state, written next to wherever you run the tool
+.routemap/
+
+node_modules/
+npm-debug.log*
+pnpm-debug.log*
+yarn-error.log*
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

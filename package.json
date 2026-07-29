@@ -1,0 +1,42 @@
+{
+  "name": "routemap",
+  "version": "1.0.0",
+  "description": "Map, audit, and edit a website's navigation. Scans every page and every link between them, serves an interactive map with live page previews, flags dead links and orphans, and queues your edits for an agent to implement.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "routemap": "bin/routemap.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "bin",
+    "scripts",
+    "viewer",
+    "skill",
+    "DESIGN.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "scan": "node scripts/scan.mjs",
+    "serve": "node scripts/serve.mjs",
+    "start": "node bin/routemap.mjs open",
+    "skill:install": "node scripts/install-skill.mjs"
+  },
+  "keywords": [
+    "sitemap",
+    "site-map",
+    "navigation",
+    "information-architecture",
+    "dead-links",
+    "link-checker",
+    "user-flow",
+    "static-analysis",
+    "claude-code",
+    "claude-skill"
+  ],
+  "dependencies": {},
+  "devDependencies": {}
+}
