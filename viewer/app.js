@@ -35,6 +35,13 @@ const S = {
 const CACHE_KEY = 'sitelines:cache:v1';
 const THEME_KEY = 'sitelines:theme';
 
+// Every server URL goes through U(). The viewer is normally served from the
+// sitelines server at the origin root, so the base is empty and paths stay
+// absolute. The published demo is a static copy under a subpath, and sets
+// `data-base` on <html> so the same code resolves against that instead.
+const BASE = (document.documentElement.dataset.base || '').replace(/\/+$/, '');
+const U = (p) => BASE + p;
+
 boot();
 
 async function boot() {
@@ -66,7 +73,7 @@ function fatal(e) {
 
 async function reload() {
   const grab = (u) => fetch(u).then((r) => { if (!r.ok) throw new Error(`${u} -> ${r.status}`); return r.json(); });
-  const [flow, edits, cfg] = await Promise.all([grab('/api/flow'), grab('/api/edits'), grab('/api/views')]);
+  const [flow, edits, cfg] = await Promise.all([grab(U('/api/flow')), grab(U('/api/edits')), grab(U('/api/views'))]);
   const first = !S.flow;
   paint(flow, cfg, edits);
   try { localStorage.setItem(CACHE_KEY, JSON.stringify({ root: location.host + flow.root, flow, cfg, edits })); } catch { /* quota */ }
@@ -124,7 +131,7 @@ function inView(n) {
 async function saveViews() {
   S.cfg.active = S.mode;
   renderTabs(); recompute(); render(); renderRail();
-  await fetch('/api/views', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(S.cfg) });
+  await fetch(U('/api/views'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(S.cfg) });
 }
 
 /* ---------- views ---------- */
@@ -624,7 +631,7 @@ function pump() {
     f.setAttribute('sandbox', sandbox());
     f.setAttribute('title', `Preview of ${t.dataset.route}`);
     f.setAttribute('tabindex', '-1');
-    f.src = '/site' + t.dataset.route;
+    f.src = U('/site' + t.dataset.route);
     let settled = false;
     const done = () => { if (settled) return; settled = true; t._done = null; t.querySelector('.ph')?.remove(); Q.live--; setTimeout(pump, 60); };
     t._done = done;
@@ -886,7 +893,7 @@ function select(id, keepScroll) {
   $('#insTitle').textContent = grouped ? `${clean(n.id)} section` : (n.title || n.label || id);
   $('#insRoute').textContent = grouped ? `${n.members.length} pages collapsed` : id;
   $('#insFile').textContent = grouped ? '' : (n.file || '');
-  $('#openTab').href = grouped ? '/site/' + (n.label === 'root' ? '' : n.label + '/') : '/site' + id;
+  $('#openTab').href = U(grouped ? '/site/' + (n.label === 'root' ? '' : n.label + '/') : '/site' + id);
   $('.devices').hidden = grouped;
   $('.preview-wrap').hidden = grouped;
   $('.viewctl').hidden = grouped;
@@ -983,18 +990,18 @@ function setPreview(id, w) {
   const scale = (wrap.clientWidth || 380) / w;
   f.style.transform = `scale(${scale})`;
   f.style.height = Math.ceil(236 / scale) + 'px';
-  const src = '/site' + id;
+  const src = U('/site' + id);
   const key = src + w + sandbox();
   if (f.dataset.src !== key) { f.setAttribute('sandbox', sandbox()); f.src = src; f.dataset.src = key; }
 }
 
 /* ---------- change queue ---------- */
 async function queue(edit) {
-  await fetch('/api/edits', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(edit) });
+  await fetch(U('/api/edits'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(edit) });
   toast(`Queued: ${edit.summary}`);
   await reload();
 }
-async function unqueue(id) { await fetch('/api/edits?id=' + encodeURIComponent(id), { method: 'DELETE' }); await reload(); }
+async function unqueue(id) { await fetch(U('/api/edits?id=') + encodeURIComponent(id), { method: 'DELETE' }); await reload(); }
 function unqueueAddLink(e) {
   const m = pending('add-link').find((p) => p.from === e.from && p.to === e.to && (p.label || 'new') === e.label);
   if (m) unqueue(m.id);
@@ -1137,7 +1144,7 @@ function wireUI() {
     S.sel = null; $('#inspect').hidden = true;
     renderTabs(); recompute(); render(); renderRail(); fit();
     S.cfg.active = S.mode;
-    fetch('/api/views', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(S.cfg) });
+    fetch(U('/api/views'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(S.cfg) });
   };
 
   const addRule = (kind) => {
@@ -1197,7 +1204,7 @@ function wireUI() {
     b.disabled = true;
     toast('Rescanning…', true);
     try {
-      const r = await fetch('/api/rescan', { method: 'POST' }).then((x) => x.json());
+      const r = await fetch(U('/api/rescan'), { method: 'POST' }).then((x) => x.json());
       await reload();
       toast(r.ok ? 'Rescanned' : 'Rescan failed. Check the terminal running sitelines.');
     } catch {
@@ -1240,7 +1247,7 @@ function wireUI() {
   };
   $('#note').addEventListener('change', async (e) => {
     const notes = { ...(S.flow.notes || {}), [S.sel]: e.target.value };
-    await fetch('/api/layout', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ notes }) });
+    await fetch(U('/api/layout'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ notes }) });
     S.flow.notes = notes;
   });
   $('.devices').onclick = (ev) => {
@@ -1281,7 +1288,7 @@ function startDrag(ev, card) {
     if (!moved) return;
     const layout_ = { [id]: { x: Math.round(p.x), y: Math.round(p.y) } };
     S.flow.layout = { ...S.flow.layout, ...layout_ };
-    fetch('/api/layout', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ layout: layout_ }) });
+    fetch(U('/api/layout'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ layout: layout_ }) });
   };
   card.addEventListener('pointermove', move);
   card.addEventListener('pointerup', up);

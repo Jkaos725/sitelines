@@ -4,6 +4,9 @@
 # the demo copy that `sitelines demo` drops in your cwd
 sitelines-demo/
 
+# the hosted demo, built by scripts/build-demo.mjs and published by CI
+_site/
+
 node_modules/
 npm-debug.log*
 pnpm-debug.log*

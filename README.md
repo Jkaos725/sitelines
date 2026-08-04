@@ -4,11 +4,20 @@
 
 **See every page on your site, every link between them, and everything that is broken.**
 
+[![npm](https://img.shields.io/npm/v/sitelines?color=2563eb&labelColor=10131a)](https://www.npmjs.com/package/sitelines)
+[![downloads](https://img.shields.io/npm/dm/sitelines?color=2563eb&labelColor=10131a)](https://www.npmjs.com/package/sitelines)
+[![no dependencies](https://img.shields.io/badge/dependencies-0-2563eb?labelColor=10131a)](package.json)
+[![license](https://img.shields.io/npm/l/sitelines?color=2563eb&labelColor=10131a)](LICENSE)
+
 Zero dependencies · no build step · Node 18+ · MIT
+
+### [Open the live demo →](https://jkaos725.github.io/sitelines/)
+
+The real viewer on the example site. Nothing to install.
 
 </div>
 
-![The sitelines viewer showing a 20-page site laid out by click depth, with dead links in red](https://raw.githubusercontent.com/Jkaos725/sitelines/main/docs/map.jpg)
+[![The sitelines viewer showing a 20-page site laid out by click depth, with dead links in red](https://raw.githubusercontent.com/Jkaos725/sitelines/main/docs/map.jpg)](https://jkaos725.github.io/sitelines/)
 
 sitelines reads your source, finds every page and every link, button, redirect, and form that moves between
 them, then serves a map in your browser. Each card is a real page with a live preview. Each wire is a real
@@ -21,9 +30,11 @@ You can also change the navigation from the map. Rename a button, point it somew
 between two pages, propose a new page. **Nothing is written to your site.** Changes queue to a JSON file,
 and a coding agent implements them in your code when you ask.
 
-> The screenshots on this page are the bundled example site, mapped by sitelines itself. Run
-> `npx sitelines demo` and you get exactly this.
+> The screenshots on this page are the bundled example site, mapped by sitelines itself. Click around in
+> it at [the live demo](https://jkaos725.github.io/sitelines/), or run `npx sitelines demo` for the same
+> thing against your own filesystem.
 
+[Live demo](https://jkaos725.github.io/sitelines/) ·
 [How to use it](#how-to-use-it) ·
 [Install](#install) ·
 [What you get](#what-you-get) ·
@@ -68,6 +79,13 @@ Everything you do queues up instead of touching your files.
 There is nothing to install to use it — `npx sitelines open` runs the whole thing. Everything below is
 optional: seeing it on a throwaway site first, keeping the command around, or teaching an agent to write
 your queued changes.
+
+### Try it in your browser, with nothing installed
+
+**[jkaos725.github.io/sitelines](https://jkaos725.github.io/sitelines/)** is the viewer itself, holding a
+scan of the bundled example site. Open a page, read its exits, queue a rename, watch the map redraw.
+Everything works except the two things that need a filesystem: queued changes stay in your browser instead
+of a file, and rescanning needs the real scanner.
 
 ### Try it on the demo site
 
@@ -295,6 +313,9 @@ Issues and pull requests are welcome.
   motion, and what each color means.
 - Test against `examples/demo-site` and against something with more than 40 pages. Density is where this
   tool succeeds or fails.
+- **The hosted demo is built from the same viewer**, so a viewer change ships to it. `npm run demo:build`
+  writes `_site/`, and CI publishes it on every push to `main`. Server URLs in `viewer/app.js` go through
+  `U()` so the demo can live under a subpath — keep new ones going through it.
 
 ## License
 
