@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
 import { fileURLToPath } from 'node:url';
+import { childCommand } from './portable.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const viewerDir = path.join(here, '..', 'viewer');
@@ -71,7 +72,8 @@ const server = http.createServer(async (req, res) => {
     }
     if (p === '/api/rescan' && req.method === 'POST') {
       const { spawnSync } = await import('node:child_process');
-      const r = spawnSync(process.execPath, [path.join(here, 'scan.mjs'), '--root', siteRoot, '--out', outDir], { cwd, encoding: 'utf8' });
+      const [exe, argv] = childCommand(path.join(here, 'scan.mjs'), ['--root', siteRoot, '--out', outDir]);
+      const r = spawnSync(exe, argv, { cwd, encoding: 'utf8' });
       return json(res, { ok: r.status === 0, out: (r.stdout || '') + (r.stderr || '') });
     }
     if (p.startsWith('/site/') || p === '/site') {

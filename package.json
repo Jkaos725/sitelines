@@ -1,6 +1,6 @@
 {
   "name": "sitelines",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Map, audit, and edit a website's navigation. Scans every page and every link between them, serves an interactive map with live page previews, flags dead links and orphans, and queues your edits for an agent to implement.",
   "type": "module",
   "license": "MIT",

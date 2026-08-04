@@ -4,6 +4,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { copyTree, childCommand } from '../scripts/portable.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const pkgRoot = path.join(here, '..');
@@ -54,7 +55,8 @@ State lives in .sitelines/ next to where you run it. Add it to .gitignore, or
 commit it to share the map's layout and notes with your team.`;
 
 function run(file, args, opts = {}) {
-  const r = spawnSync(process.execPath, [path.join(scripts, file), ...args], { stdio: 'inherit', ...opts });
+  const [exe, argv] = childCommand(path.join(scripts, file), args);
+  const r = spawnSync(exe, argv, { stdio: 'inherit', ...opts });
   if (r.error) { console.error(`sitelines: ${r.error.message}`); process.exit(1); }
   return r.status ?? 0;
 }
@@ -102,8 +104,7 @@ switch (cmd) {
     if (fs.existsSync(dest) && fs.readdirSync(dest).length) {
       console.log(`sitelines: reusing the existing ${path.basename(dest)}/`);
     } else {
-      fs.mkdirSync(dest, { recursive: true });
-      fs.cpSync(src, dest, { recursive: true });
+      copyTree(src, dest);
       console.log(`sitelines: copied the example site to ${path.basename(dest)}/ (20 pages)`);
     }
     const port = flagValue(rest, 'port', '4370');

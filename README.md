@@ -63,9 +63,11 @@ Three ways in, depending on what you want.
 Everything above. The scanner, the server, and the map.
 
 ```bash
-npx sitelines open          # npm
-pnpm dlx sitelines open     # pnpm
-bunx sitelines open         # bun
+npx sitelines open                    # npm
+pnpm dlx sitelines open               # pnpm
+bunx sitelines open                   # bun
+yarn dlx sitelines open               # yarn
+deno run -A npm:sitelines open        # deno
 ```
 
 Or keep it around:
@@ -74,10 +76,13 @@ Or keep it around:
 npm  install -g sitelines
 pnpm add -g sitelines
 bun  add -g sitelines
+yarn add sitelines          # yarn 2+ has no global install; add it to the project
 ```
 
-**Every `npx` in this README works the same as `pnpm dlx` and `bunx`.** sitelines has no dependencies and
-no build step, so there is nothing for a package manager to disagree about. It runs on Node 18+ and on Bun.
+**Every `npx` in this README works the same as `pnpm dlx`, `bunx`, `yarn dlx`, and `deno run -A npm:`.**
+sitelines has no dependencies and no build step, so there is nothing for a package manager to disagree
+about. Node 18+, Bun, and Deno all run it; npm, pnpm, yarn (both `node_modules` and Plug'n'Play), and bun
+all install it.
 
 Or from source, with nothing to build:
 

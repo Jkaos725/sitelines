@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { copyTree } from './portable.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const pkgRoot = path.join(here, '..');
@@ -49,7 +50,7 @@ export function installSkill({ scope = 'global', dir = null, force = false } = {
     if (!fs.existsSync(src)) continue;
     const target = path.join(dest, to);
     fs.rmSync(target, { recursive: true, force: true });
-    fs.cpSync(src, target, { recursive: true });
+    copyTree(src, target);
   }
   return { dest, changed: true };
 }

@@ -18,6 +18,9 @@ node <skill-dir>/scripts/serve.mjs --root public     # -> http://localhost:4370
 
 Run `serve.mjs` with `run_in_background: true`, then give the user the URL. Never block on it.
 
+Both scripts are plain ESM with no dependencies: swap `node` for `bun` or `deno run -A` if the project has
+no node on PATH.
+
 - `--root` = the directory holding the site's pages. Auto-detected if omitted (`public`, `site`, `www`,
   `static`, `src/pages`, `src/routes`, `src/app`, `app/pages`, `pages`, `app`, `docs`).
 - `--out` = state directory, default `.sitelines/` in the repo. Suggest adding it to `.gitignore` unless
