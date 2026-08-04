@@ -20,10 +20,12 @@ const version = (() => {
 
 const HELP = `sitelines ${version} - map, audit, and edit a site's navigation
 
-  sitelines scan [--root DIR] [--out DIR]
+  sitelines scan [--root DIR] [--out DIR] [--base URL]
       Read every page and every link between them. Writes .sitelines/flow.json.
       --root defaults to the first of public, site, www, static, src/pages,
       src/routes, src/app, app/pages, pages, app, docs that exists.
+      --base records the deployed origin in flow.json for other tools to read;
+      it does not change the scan or the map.
 
   sitelines serve [--root DIR] [--out DIR] [--port N] [--open]
       Open the map in a browser. Requires a scan first.

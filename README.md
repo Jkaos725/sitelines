@@ -24,6 +24,12 @@ and a coding agent implements them in your code when you ask.
 > The screenshots on this page are the bundled example site, mapped by sitelines itself. Run
 > `npx sitelines demo` and you get exactly this.
 
+[How to use it](#how-to-use-it) ·
+[Install](#install) ·
+[What you get](#what-you-get) ·
+[Reference](docs/reference.md) ·
+[Troubleshooting](docs/reference.md#troubleshooting)
+
 ---
 
 ## How to use it
@@ -35,9 +41,12 @@ cd your-project
 npx sitelines open
 ```
 
-That scans, starts a local server, and opens `http://localhost:4370`. It looks for your pages in `public`,
-`site`, `www`, `static`, `src/pages`, `src/routes`, `src/app`, `app/pages`, `pages`, `app`, or `docs`.
-Point it somewhere else with `--root`:
+That scans, starts a local server, and opens `http://localhost:4370`. Nothing is installed — see
+[Install](#install) for the other package managers and for a permanent install.
+
+It looks for your pages in the first of `public`, `site`, `www`, `static`, `src/pages`, `src/routes`,
+`src/app`, `app/pages`, `pages`, `app`, `docs` that exists, and falls back to the whole current directory
+if none do. Point it somewhere else with `--root`:
 
 ```bash
 npx sitelines open --root src/routes --port 5000
@@ -56,11 +65,25 @@ Everything you do queues up instead of touching your files.
 
 ## Install
 
-Three ways in, depending on what you want.
+There is nothing to install to use it — `npx sitelines open` runs the whole thing. Everything below is
+optional: seeing it on a throwaway site first, keeping the command around, or teaching an agent to write
+your queued changes.
 
-### Option 1: the tool
+### Try it on the demo site
 
-Everything above. The scanner, the server, and the map.
+Safest first run. Copies a 20-page example site into `./sitelines-demo` and maps that. Nothing outside
+that folder is touched, and your own project is never read.
+
+```bash
+npx sitelines demo
+```
+
+The example has deliberate faults so every part of the map has something to show: two dead links (one of
+them only reachable by reading the JavaScript), three orphans, a dead end, and a page four clicks deep.
+
+### Run it without installing
+
+Pick your package manager. All five do the same thing.
 
 ```bash
 npx sitelines open                    # npm
@@ -70,44 +93,47 @@ yarn dlx sitelines open               # yarn
 deno run -A npm:sitelines open        # deno
 ```
 
-Or keep it around:
+Every other `npx` in this README substitutes the same way.
+
+### Install it permanently
 
 ```bash
-npm  install -g sitelines
-pnpm add -g sitelines
-bun  add -g sitelines
-yarn add sitelines          # yarn 2+ has no global install; add it to the project
+npm  install -g sitelines     # then: sitelines open
+pnpm add -g sitelines         # then: sitelines open
+bun  add -g sitelines         # then: sitelines open
 ```
 
-**Every `npx` in this README works the same as `pnpm dlx`, `bunx`, `yarn dlx`, and `deno run -A npm:`.**
+Yarn 2+ has no global install, so add it to the project instead — note the different run command:
+
+```bash
+yarn add --dev sitelines      # then: yarn sitelines open
+```
+
+### Run it from source
+
+Nothing to build. Clone once, anywhere, and point Node at `bin/sitelines.mjs` from inside the project you
+want mapped:
+
+```bash
+git clone https://github.com/Jkaos725/sitelines.git ~/tools/sitelines
+
+cd /path/to/your-project
+node ~/tools/sitelines/bin/sitelines.mjs open
+```
+
+<details>
+<summary>Why any package manager works</summary>
+
 sitelines has no dependencies and no build step, so there is nothing for a package manager to disagree
 about. Node 18+, Bun, and Deno all run it; npm, pnpm, yarn (both `node_modules` and Plug'n'Play), and bun
 all install it.
 
-Or from source, with nothing to build:
+</details>
 
-```bash
-git clone https://github.com/Jkaos725/sitelines.git
-cd your-project
-node /path/to/sitelines/bin/sitelines.mjs open
-```
+### Let an agent write the changes
 
-### Option 2: the demo
-
-See what it does before pointing it at anything of yours. This copies a 20-page example site into
-`./sitelines-demo` and maps it. Nothing outside that folder is touched.
-
-```bash
-npx sitelines demo
-```
-
-The example has deliberate faults so every part of the map has something to show: two dead links (one of
-them only reachable by reading the JavaScript), three orphans, a dead end, and a page four clicks deep.
-
-### Option 3: the Claude Code skill
-
-The same tool, plus the instructions an agent needs to turn your queued changes into real code. This is the
-only option that can actually **write** the changes for you.
+The same tool, plus the instructions an agent needs to turn your queued changes into real code. This is what
+lets the changes you queue in the map actually get **written** into your source.
 
 **Claude Code** reads skill folders:
 
@@ -174,33 +200,21 @@ Restart Claude Code, then type `/sitelines` or just ask:
 - "find the dead links"
 - "apply my sitelines changes"
 
-### All commands
+### The commands
 
 ```
-sitelines scan  [--root DIR] [--out DIR]                       read the site, write .sitelines/flow.json
-sitelines serve [--root DIR] [--out DIR] [--port N] [--open]   open the map
-sitelines open  [--root DIR] [--port N]                        scan, serve, and open the browser
-sitelines demo  [--dir DIR] [--port N]                         copy the example site and map it
-sitelines skill install   [--global|--project] [--force]       install the Claude Code skill
-sitelines skill uninstall [--global|--project]                 remove it
-sitelines agents install   [--dir DIR]                         write the AGENTS.md block (every other agent)
-sitelines agents uninstall [--dir DIR]                         remove just that block
-sitelines version
-sitelines help
+sitelines open    scan, serve, and open the browser   -- the usual one
+sitelines demo    copy the example site and map it
+sitelines scan    read the site, write .sitelines/flow.json
+sitelines serve   open the map for an existing scan
+sitelines help    every command and flag
 ```
+
+Every flag, including `--base`, is in the [reference](docs/reference.md#flags).
 
 ---
 
-## Features
-
-### It hides your header and footer, and says so
-
-A nav bar repeated on twenty pages emits twenty identical links, and those wires bury every link that is
-actually specific to a page. sitelines detects any link appearing on more than four pages, folds it away,
-and reports the count it folded: **27 of 174** in the screenshot above. Turn it back on under **Layers**.
-
-Folding is a drawing decision, never an analytical one. A page reachable only through your footer is still
-reachable, and sitelines will not call it an orphan just because the footer is hidden.
+## What you get
 
 ### Every page is live, at any width
 
@@ -234,83 +248,18 @@ dashed card. The queue lives in `.sitelines/edits.json` and is the only thing si
 
 Follows `prefers-color-scheme` and remembers a manual override. Every text color clears WCAG AA in both.
 
-### Views are yours to define
+### It stays readable on a real site
 
-The base view, **everything**, always shows every page and never takes a rule. Filter from it and sitelines
-starts a new view rather than quietly turning your one complete picture into a partial one. Press **+** on
-the tab bar to name a view, or write one into `.sitelines/views.json` and it appears:
-
-```json
-{
-  "active": "all",
-  "views": [
-    { "id": "all",  "label": "everything", "base": true, "include": [], "exclude": [] },
-    { "id": "docs", "label": "docs only",  "include": ["/docs/**"], "exclude": [] },
-    { "id": "app",  "label": "no legal",   "include": [], "exclude": ["/legal/**"] }
-  ]
-}
-```
-
-Patterns: `/docs/**` (subtree), `/docs/` (exact), `/docs/*` (one level), `*report*` (substring).
-
-### Directories collapse
-
-Pages sharing a top-level directory sit on a labelled backdrop. Click the label to fold the whole directory
-into one card: internal links disappear, and the directory keeps one wire per neighbour labelled `N links`,
-with every underlying control in its tooltip.
-
-### Keyboard
-
-| | |
-| --- | --- |
-| Drag background / wheel | Pan / zoom |
-| `f` | Fit everything on screen |
-| `/` | Focus the filter |
-| `1` `2` `3` | Switch views |
-| `e` | New link from the selected page |
-| `Escape` | Cancel whatever is in progress |
+Your header and footer are folded away — any link appearing on more than four pages, with the count it
+folded reported on screen — so the wires that remain are the ones specific to a page. Directories fold into
+single cards. Filtered views are yours to name and save. None of it changes the analysis: a page reachable
+only through your footer is still reachable, and sitelines will not call it an orphan.
 
 ---
 
-## What the scanner reads
+## What it writes
 
-| Source | How the label is found |
-| --- | --- |
-| `<a href>` | The link text |
-| `<button>` / `<div>` with `onclick="location.href=…"`, `data-href`, `data-nav`, `formaction` | The element text |
-| `<form action>` | `POST form` |
-| `<meta http-equiv=refresh>` | `meta refresh` |
-| `location.href` / `.assign` / `.replace`, `window.open`, `router.push` / `.replace`, `navigate()` | The nearest `getElementById` or `querySelector` above the call |
-
-Pages are `*.html` files. If a project has none, sitelines falls back to framework page files under
-`pages/`, `routes/`, or `app/`.
-
-It is static analysis, so it reads what is in the source. A destination assembled at runtime from a template
-string is not something a scanner can resolve, and sitelines skips it rather than guessing.
-
-## Previews
-
-Two defaults worth knowing:
-
-- **Page JavaScript is off.** Preview iframes get an empty `sandbox`. A page that polls or retries a dead
-  API will otherwise peg your browser forty iframes over. Markup and CSS still render. Turn it on under
-  **Layers → Run page JavaScript**.
-- **Service workers are blocked** inside previews, or your site's own worker caches the preview responses
-  and serves them back for every later preview.
-
-For pages that need real data or a login, run your own dev server and use the **Open** button on the card.
-
-## Performance
-
-Large sites stay usable because the viewer refuses to pretend:
-
-- At most 12 preview iframes stay mounted, two loading at a time. Offscreen cards unmount.
-- Past 60 pages previews start off, and the viewer says why.
-- Below 0.26 zoom, thumbnails and wire labels leave the render tree instead of compositing a smear.
-
-## State
-
-sitelines writes one directory next to where you run it:
+One directory, next to where you run it. Nothing outside it is ever touched.
 
 ```
 .sitelines/
@@ -320,7 +269,18 @@ sitelines writes one directory next to where you run it:
 ```
 
 Add it to `.gitignore` if it is yours alone, or commit it to share the layout and notes with your team.
-Nothing outside this directory is ever written.
+
+## Reference
+
+The details live in [`docs/reference.md`](docs/reference.md):
+
+- [Commands and every flag](docs/reference.md#flags), including `--base`
+- [What the scanner reads](docs/reference.md#what-the-scanner-reads) — which markup and JS calls become
+  links, and what static analysis cannot see
+- [Views](docs/reference.md#views), [directories](docs/reference.md#directories), and the
+  [keyboard map](docs/reference.md#keyboard)
+- [Previews](docs/reference.md#previews) and [performance on large sites](docs/reference.md#performance)
+- [Troubleshooting](docs/reference.md#troubleshooting)
 
 ---
 
