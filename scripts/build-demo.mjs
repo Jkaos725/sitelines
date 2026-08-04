@@ -38,9 +38,12 @@ const META = `<meta name="description" content="${DESC}">
 <meta name="twitter:card" content="summary_large_image">`;
 
 // Pages serves the whole output directory; the demo is the only thing in it.
+// The bare URL is the one people paste, so it carries the card meta too -
+// a crawler reading it never follows the refresh.
 const REDIRECT = `<!doctype html>
 <meta charset="utf-8">
-<title>sitelines</title>
+<title>sitelines - live demo</title>
+${META}
 <meta http-equiv="refresh" content="0; url=./demo/">
 <link rel="canonical" href="./demo/">
 <p><a href="./demo/">sitelines demo</a></p>
